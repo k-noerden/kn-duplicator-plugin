@@ -70,10 +70,10 @@ func check():
 	var cls = load(current_path)
 	var node = cls.instantiate()
 	var node_name = node.name
-	var script_path = node.get_script().resource_path
+	var script_path = node.get_script().resource_path if node.get_script() else ""
 
 	# Ensure script is in current dir
-	if script_path.get_base_dir() != current_dir:
+	if script_path and script_path.get_base_dir() != current_dir:
 		return "Script is not in current dir"
 
 	var sub_files = DirAccess.get_files_at(current_dir)
@@ -84,7 +84,7 @@ func check():
 		# print("sub_file: ", sub_file)
 		if sub_file == current_path.get_file():
 			continue
-		if sub_file == script_path.get_file():
+		if script_path and sub_file == script_path.get_file():
 			continue
 		var extension = sub_file.get_extension()
 		if extension == "tscn" or extension == "scn":
@@ -94,15 +94,27 @@ func check():
 		# ignoring file
 		continue
 
-	transformations_label.text = "Create %s\nCopy: %s ➝ %s\nCopy: %s ➝ %s\nNode: %s ➝ %s" % [
-		destination_dir,
-		current_path.get_file(),
-		new_scene_path.get_file(),
-		script_path.get_file(),
-		new_script_path.get_file(),
-		node_name,
-		new_node_name,
-		]
+	if script_path:
+		transformations_label.text = "Create %s\nCopy: %s ➝ %s\nCopy: %s ➝ %s\nNode: %s ➝ %s" % [
+			destination_dir,
+			current_path.get_file(),
+			new_scene_path.get_file(),
+			script_path.get_file(),
+			new_script_path.get_file(),
+			node_name,
+			new_node_name,
+			]
+	else:
+		transformations_label.text = "Create %s\nCopy: %s ➝ %s\nNode: %s ➝ %s" % [
+			destination_dir,
+			current_path.get_file(),
+			new_scene_path.get_file(),
+			# script_path.get_file(),
+			# new_script_path.get_file(),
+			node_name,
+			new_node_name,
+			]
+
 	return null
 
 
@@ -113,7 +125,6 @@ func create():
 		return
 	var cls = load(current_path)
 	var node = cls.instantiate()
-	var script_path = node.get_script().resource_path
 
 	var input = text_edit.text.strip_edges()
 	var new_filename_base = input.to_lower().validate_filename().to_snake_case()
@@ -125,33 +136,34 @@ func create():
 	var new_script_path = "%s/%s.gd" % [destination_dir, new_filename_base]
 	var node_name = node.name
 
-	# Save script specific properties, so they can be restored after changing the script.
-	var properties = []
-	for property in node.get_script().get_script_property_list():
-		if property["name"] in node:
-			properties.push_back([property["name"], node.get(property["name"])])
-
-	# Copy script
 	error = DirAccess.make_dir_absolute(destination_dir)
 	if error != OK:
 		error_label.text = "Could not make dir: %s" % destination_dir
 		error_label.show()
 		return
-	error = DirAccess.copy_absolute(script_path, new_script_path)
-	if error != OK:
-		error_label.text = "Could not make dir: %s" % destination_dir
-		error_label.show()
-		return
 
-	var new_script = load(new_script_path)
-	if not new_script:
-		error_label.text = "Could not load script: %s" % new_script_path
-		error_label.show()
-		return
-	node.set_script(new_script) # Discards exported variables from previous script
-	# Restore saved properties
-	for property_pair in properties:
-		node.set(property_pair[0], property_pair[1])
+	if node.get_script():
+		var script_path = node.get_script().resource_path
+		# Save script specific properties, so they can be restored after changing the script.
+		var properties = []
+		for property in node.get_script().get_script_property_list():
+			if property["name"] in node:
+				properties.push_back([property["name"], node.get(property["name"])])
+		# Copy script
+		error = DirAccess.copy_absolute(script_path, new_script_path)
+		if error != OK:
+			error_label.text = "Could not make dir: %s" % destination_dir
+			error_label.show()
+			return
+		var new_script = load(new_script_path)
+		if not new_script:
+			error_label.text = "Could not load script: %s" % new_script_path
+			error_label.show()
+			return
+		node.set_script(new_script) # Discards exported variables from previous script
+		# Restore saved properties
+		for property_pair in properties:
+			node.set(property_pair[0], property_pair[1])
 
 	node.name = new_node_name
 
